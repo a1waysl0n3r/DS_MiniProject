@@ -19,8 +19,8 @@ struct tool{
 };
 typedef struct tool tool;
 tool short_sword = {"Dagger", 8, 5, 0, 1};
-tool bow = {"Bow", 10, 0, 20, 0 };
-tool long_sword = {"Crescent Cleaver", 15, 0 , -15, 10};
+tool bow = {"Bow", 10, 0, 30, 0 };
+tool long_sword = {"Crescent Cleaver", 25, 0 , -15, 10};
 
 struct room{
     int room_type;
@@ -43,7 +43,7 @@ struct player{
     struct tool* tool;
 };
 
-struct player player = {NULL, 100, 100, 0, 0, 50, 5, NULL};
+struct player player = {NULL, 100, 100, 0, 0, 50, 2, NULL};
 
 struct entities{
     int hp;
@@ -90,6 +90,22 @@ void puzzle(){
     }
 }
 
+void stats_up(struct player player){
+    printf("Attack increased: %d -> %d\n", player.dmg + player.tool->dmg, player.dmg + player.tool->dmg + 10);
+    printf("Defense increased: %d -> %d\n", player.defense, player.defense + 5);
+    printf("Max HP increased: %d -> %d\n", player.max_hp, player.max_hp + 10);
+
+    player.dmg += 10;
+    player.defense += 5;
+    player.max_hp += 10;
+    player.hp += player.max_hp * 0.2;
+
+    if (player.hp > player.max_hp) {
+        player.hp = player.max_hp;
+    }
+    printf("HP restored: %d -> %d\n", player.hp, player.hp + (int)(player.hp * 0.2));
+}
+
 
 void miniboss_shadow_assassin(struct entities mob) {
     srand(time(NULL));
@@ -131,7 +147,8 @@ void miniboss_shadow_assassin(struct entities mob) {
 
         if (mob.hp <= 0) {
             printf("You defeated the Shadow Assassin!\n");
-            player.max_hp += 10;
+            stats_up(player);
+
             break;
         }
 
@@ -139,7 +156,7 @@ void miniboss_shadow_assassin(struct entities mob) {
         if (!invisible) {
             int mobProb = hit_probability();
             if (mobProb < mob.accuracy) {
-                player.hp -= mob.dmg;
+                player.hp -= mob.dmg - player.defense;
                 printf("The Shadow Assassin hit you for %d damage! Your HP: %d\n", mob.dmg, player.hp);
             } else {
                 printf("The Shadow Assassin missed!\n");
@@ -158,6 +175,19 @@ void miniboss_shadow_assassin(struct entities mob) {
     }
 }
 
+
+void my_stats(struct player player) {
+    printf("Player Stats:\n");
+    printf("Attack Damage: %d\n", player.dmg + player.tool->dmg);
+    printf("Defense: %d\n", player.defense);
+    printf("Current HP: %d\n", player.hp);
+    printf("Max HP: %d\n", player.max_hp);
+    printf("Bleed: %d\n", player.bleed + player.tool->bleed);
+    printf("Accuracy: %d\n", player.accuracy + player.tool->accuracy);
+
+}
+
+
 void miniboss_elemental_guardian(struct entities mob) {
     printf("mob hp: %d\nmob dmg: %d\n", mob.hp, mob.dmg);
     int elemental_type = 0; // 0: Fire, 1: Ice, 2: Earth
@@ -170,12 +200,11 @@ void miniboss_elemental_guardian(struct entities mob) {
         int playerChoice;
         printf("Choose an action:\n1. Attack\n2. Defend\n");
         scanf("%d", &playerChoice);
-
+        bool acc_up = false;
         if (playerChoice == 1) {
             int prob = hit_probability();
             if (prob < player.accuracy) {
                 int damageDealt = player.dmg + player.tool->dmg;
-
                 // Apply elemental effects
                 if (elemental_type == 0) {
                     // Fire - Burn effect
@@ -184,9 +213,14 @@ void miniboss_elemental_guardian(struct entities mob) {
                     player.hp -= 3;
                 } else if (elemental_type == 1) {
                     // Ice - Slow effect
-                    printf("You hit the Elemental Guardian for %d damage! Your speed is decreased!\n", damageDealt);
+                    printf("You hit the Elemental Guardian for %d damage! Enemy Accuracy is increased!\n", damageDealt);
                     mob.hp -= damageDealt;
-                    mob.accuracy += 10;
+                    if(acc_up = false){
+                        mob.accuracy += 10;
+                        acc_up = true;
+                    }
+
+
                 } else if (elemental_type == 2) {
                     // Earth - Defense boost
                     printf("You hit the Elemental Guardian for %d damage, but it is defending!\n", damageDealt / 2);
@@ -204,16 +238,19 @@ void miniboss_elemental_guardian(struct entities mob) {
         }
 
         if (mob.hp <= 0) {
-            printf("You defeated the Elemental Guardian!\n");
-            player.max_hp += 10;
-            break;
+            printf("Congratulations! You have defeated the Elemental Guardian\n");
+            stats_up(player);
         }
 
         // Guardian's turn to attack
         int mobProb = hit_probability();
         if (mobProb < mob.accuracy) {
-            player.hp -= mob.dmg;
+            player.hp -= mob.dmg - player.defense;
             printf("The Elemental Guardian hit you for %d damage! Your HP: %d\n", mob.dmg, player.hp);
+            if(acc_up){
+                acc_up = false;
+                mob.accuracy -= 10;
+            }
         } else {
             printf("The Elemental Guardian missed!\n");
         }
@@ -223,6 +260,7 @@ void miniboss_elemental_guardian(struct entities mob) {
             player.head = NULL;
             break;
         }
+        printf("Elemental Guardian HP: %d\nYour HP: %d", mob.hp, player.hp);
     }
 }
 
@@ -330,7 +368,11 @@ void fight(){
 
         if (goblin.hp <= 0) {
             printf("You have defeated the goblin!\n");
+            player.hp += 10;
             player.max_hp  += 5;
+            if(player.hp > player.max_hp){
+                player.hp = player.max_hp;
+            }
             break;
         }
 
@@ -392,52 +434,60 @@ int actions(){
 }
 
 void movePlayer(struct player* player) {
-    int choice;
-    printf("Choose a direction to move (1: North, 2: South, 3: East, 4: West): ");
-    scanf("%d", &choice);
-    switch (choice) {
-        case 1: // Move north
-            if (player->head->north != NULL) {
-                player->head = player->head->north;
-                printf("Moved north.\n");
-            } else {
-                printf("Can't move north; there's a wall.\n");
-            }
-            break;
-        case 2: // Move south
-            if (player->head->south != NULL) {
-                player->head = player->head->south;
-                printf("Moved south.\n");
-            } else {
-                printf("Can't move south; there's a wall.\n");
-            }
-            break;
-        case 3: // Move east
-            if (player->head->east != NULL) {
-                player->head = player->head->east;
-                printf("Moved east.\n");
-            } else {
-                printf("Can't move east; there's a wall.\n");
-            }
-            break;
-        case 4: // Move west
-            if (player->head->west != NULL) {
-                player->head = player->head->west;
-                printf("Moved west.\n");
-            } else {
-                printf("Can't move west; there's a wall.\n");
-            }
-            break;
-        default:
-            printf("Invalid choice! Please enter a number between 1 and 4.\n");
-            break;
+    bool flag = true;
+    while(flag){
+        int choice;
+        printf("Choose a direction to move (1: North, 2: South, 3: East, 4: West): ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1: // Move north
+                if (player->head->north != NULL) {
+                    player->head = player->head->north;
+                    printf("Moved north.\n");
+                    flag = false;
+                } else {
+                    printf("Can't move north; there's a wall.\n");
+                }
+                break;
+            case 2: // Move south
+                if (player->head->south != NULL) {
+                    player->head = player->head->south;
+                    printf("Moved south.\n");
+                    flag = false;
+                } else {
+                    printf("Can't move south; there's a wall.\n");
+                }
+                break;
+            case 3: // Move east
+                if (player->head->east != NULL) {
+                    player->head = player->head->east;
+                    printf("Moved east.\n");
+                    flag = false;
+                } else {
+                    printf("Can't move east; there's a wall.\n");
+                }
+                break;
+            case 4: // Move west
+                if (player->head->west != NULL) {
+                    player->head = player->head->west;
+                    printf("Moved west.\n");
+                    flag = false;
+                } else {
+                    printf("Can't move west; there's a wall.\n");
+                }
+                break;
+            default:
+                printf("Invalid choice! Please enter a number between 1 and 4.\n");
+                break;
+        }
     }
 }
 
 void rest(){
     int q = 2;
-    while(q--){
-        printf("Enter a choice:\n1. Full heal\n2. DMG+10\n3. ACC+10\n4. MAX HP+20");
+    while(q>0){
+        printf("Enter a choice:\n1. Full heal\n2. DMG+10\n3. ACC+10\n4. MAX HP+20\nShow Stats\nChoice: ");
         int choice;
         scanf("%d", &choice);
         switch(choice){
@@ -452,6 +502,16 @@ void rest(){
                 break;
             case 4:
                 player.max_hp += 10;
+                break;
+            case 5:
+                my_stats(player);
+                break;
+        }
+        if(choice == 5){
+            continue;
+        }
+        else{
+            q--;
         }
     }
 }
@@ -591,7 +651,7 @@ bool puzzle_2() {
     scanf("%s", input);
     // Remove newline character from input
 
-    // Check if the player’s input matches the selected color
+    // Check if the playerâ€™s input matches the selected color
     if (strcasecmp(input, colors[selected_color_index]) == 0) {
         printf("Correct! You passed the puzzle.\n");
         player.max_hp += 5;
